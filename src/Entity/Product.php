@@ -4,6 +4,8 @@ namespace App\Entity;
 
 use ApiPlatform\Core\Annotation\ApiResource;
 use App\Repository\ProductRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -28,6 +30,16 @@ class Product
      * @ORM\Column(type="float", nullable=true)
      */
     private $basePrice;
+
+    /**
+     * @ORM\OneToMany(targetEntity=ProductConfiguration::class, mappedBy="product", orphanRemoval=true)
+     */
+    private $configurations;
+
+    public function __construct()
+    {
+        $this->configurations = new ArrayCollection();
+    }
 
     public function getId(): ?int
     {
@@ -54,6 +66,36 @@ class Product
     public function setBasePrice(?float $basePrice): self
     {
         $this->basePrice = $basePrice;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection|ProductConfiguration[]
+     */
+    public function getConfigurations(): Collection
+    {
+        return $this->configurations;
+    }
+
+    public function addConfiguration(ProductConfiguration $configuration): self
+    {
+        if (!$this->configurations->contains($configuration)) {
+            $this->configurations[] = $configuration;
+            $configuration->setProduct($this);
+        }
+
+        return $this;
+    }
+
+    public function removeConfiguration(ProductConfiguration $configuration): self
+    {
+        if ($this->configurations->removeElement($configuration)) {
+            // set the owning side to null (unless already changed)
+            if ($configuration->getProduct() === $this) {
+                $configuration->setProduct(null);
+            }
+        }
 
         return $this;
     }
