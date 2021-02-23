@@ -28,6 +28,8 @@ Dans l'environnement de développement :
 
 ```bash
 docker-compose -f docker-compose.yml -f docker-compose.development.yml up -d
+# ou bien
+composer start-dev
 ```
 
 Tester l'accès sur le port exposé par NGINX, dans notre cas `8500` : [http://localhost:8500](http://localhost:8500).
