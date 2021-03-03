@@ -163,7 +163,7 @@ Cette responsabilité est, quelque part, un peu liée à l'instanciation de la c
 
 ### Première version
 
-![Class 1](docs\FileImport_class_diagram_1.png "Class 1")
+![Class 1](docs/FileImport_class_diagram_1.png "Class 1")
 
 ![Sequence 1](docs/FileImport_without_object_pool.png "Sequence 1")
 
