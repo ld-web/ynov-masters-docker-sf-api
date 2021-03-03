@@ -1,0 +1,56 @@
+@startuml FileImport
+actor Client
+boundary Controller
+participant ImportService
+participant ProductRepository
+participant EntityManager
+
+Client -> Controller : import
+alt File not provided
+  Controller -> Client : File is required
+end
+
+Controller -> ImportService : setFile(file)
+ImportService -> ImportService : isValid(file)
+alt Invalid file's MIME type
+  ImportService -> Client : Invalid file
+else Valid file
+  ImportService -> ImportService : assign file's pointer
+  ImportService -> ImportService : set separator
+end
+
+Controller -> ImportService : import()
+loop every line
+  alt Invalid line (column number, shape)
+    ImportService -> ImportService : ignore line
+    note over ImportService : Go to next iteration
+  end
+  ImportService -> ImportService : find product in object pool
+  alt product not found
+    ImportService -> ProductRepository : find product by name
+    alt product not found
+      ImportService -> ImportService : create product
+      ImportService -> EntityManager : persist product
+      ImportService -> ImportService : add product in object pool
+    else product found
+      ProductRepository -> ImportService : product
+    end
+  end
+
+  ImportService -> ImportService : get current line's shape
+  alt shape == "Rectangulaire"
+    ImportService -> ImportService : create rectangular shape
+  else shape == "Circulaire"
+    ImportService -> ImportService : create circular shape
+  else shape is unknown
+    ImportService -> ImportService : ignore line
+    note over ImportService : Go to next iteration
+  end
+
+  ImportService -> ImportService : persist configuration
+end
+
+ImportService -> EntityManager : flush
+ImportService -> Controller : imported lines number
+Controller -> Client : JSON(imported lines number)
+@enduml
