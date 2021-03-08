@@ -2,11 +2,15 @@
 
 namespace App\FileImport;
 
-use App\Entity\CircProductConfiguration;
 use App\Entity\Product;
-use App\Entity\RectProductConfiguration;
 use App\FileImport\Exception\FileNotSetException;
 use App\FileImport\Exception\InvalidMimeTypeException;
+use App\Product\Shape;
+use App\ProductConfiguration\Builder\AbstractBuilder;
+use App\ProductConfiguration\Builder\BuilderDirector;
+use App\ProductConfiguration\Builder\BuilderPool;
+use App\ProductConfiguration\Builder\CircularBuilder;
+use App\ProductConfiguration\Builder\RectangularBuilder;
 use App\Repository\ProductRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use SplFileObject;
@@ -20,6 +24,8 @@ class ProductConfigurationImportService
   private $nbColumns = 11;
   private $separator = ';';
   private $products = []; // Product objects pool
+  private $director;
+  private $builderPool;
 
   private const AUTHORIZED_MIME_TYPES = [
     'text/csv',
@@ -29,10 +35,16 @@ class ProductConfigurationImportService
     'application/csv'
   ];
 
-  public function __construct(ProductRepository $productRepository, EntityManagerInterface $em)
-  {
+  public function __construct(
+    ProductRepository $productRepository,
+    EntityManagerInterface $em,
+    BuilderDirector $director,
+    BuilderPool $builderPool
+  ) {
     $this->productRepository = $productRepository;
     $this->em = $em;
+    $this->director = $director;
+    $this->builderPool = $builderPool;
   }
 
   public function import(): int
@@ -44,8 +56,12 @@ class ProductConfigurationImportService
     }
 
     foreach ($this->file as $line) {
-      $shape = $line[0];
-      if (count($line) !== $this->nbColumns || ($shape !== "Rectangulaire" && $shape !== "Circulaire")) {
+      if (count($line) !== $this->nbColumns) {
+        continue;
+      }
+
+      $shape = Shape::getShape($line[0]);
+      if ($shape === null) {
         continue; // wrong column number or unknown shape : just ignore this line
       }
 
@@ -53,29 +69,10 @@ class ProductConfigurationImportService
       $product = $this->getOrCreateProduct($line[1]);
 
       // --- Configuration
-      if ($shape === "Rectangulaire") {
-        $configuration = new RectProductConfiguration();
-        $configuration
-          ->setWidth($line[2])
-          ->setHeight($line[3])
-          ->setThickness($line[4])
-          ->setDepth(floatval($line[5]))
-          ->setDB10(floatval($line[7]))
-          ->setDB5(floatval($line[8]))
-          ->setDB2(floatval($line[9]))
-          ->setDB1(floatval($line[10]))
-          ->setProduct($product);
-      } elseif ($shape === "Circulaire") {
-        $configuration = new CircProductConfiguration();
-        $configuration
-          ->setDiameter(floatval($line[6]))
-          ->setDepth(floatval($line[5]))
-          ->setDB10(floatval($line[7]))
-          ->setDB5(floatval($line[8]))
-          ->setDB2(floatval($line[9]))
-          ->setDB1(floatval($line[10]))
-          ->setProduct($product);
-      }
+      $builder = $this->selectBuilder($shape);
+      $this->director->setBuilder($builder);
+      $configuration = $this->director->make($line);
+      $configuration->setProduct($product);
 
       $this->em->persist($configuration);
       $imported++;
@@ -140,5 +137,17 @@ class ProductConfigurationImportService
     }
 
     return $product;
+  }
+
+  private function selectBuilder(int $shape): AbstractBuilder
+  {
+    switch ($shape) {
+      case Shape::CIRCULAR:
+        return $this->builderPool->get(CircularBuilder::class);
+      case Shape::RECTANGULAR:
+        return $this->builderPool->get(RectangularBuilder::class);
+      default:
+        throw new \LogicException("Unsupported row format");
+    }
   }
 }
